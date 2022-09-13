@@ -1,5 +1,6 @@
 class Palito {
     #fichas;
+    #fichasMax;
     #base;
     #width;
     #height;
@@ -26,6 +27,7 @@ class Palito {
     }
 
     constructor(fichasMax) {
+        this.#fichasMax = fichasMax;
         this.#fichas = new Array();
         this.#width = Tablero.ANCHO;
         this.#base = Tablero.INICIO_BASE_Y;
@@ -34,18 +36,24 @@ class Palito {
     }
 
     cargarFicha(ficha) {
-        if (this.#fichas.length != 0) {
-            let ultimaficha = this.#fichas[this.#fichas.length -1];
-            ficha.setCoord(this.#coordX + (this.#width/2), ultimaficha.coordY - (Ficha.RADIO * 2));
-            this.#fichas.push(ficha);
+        if (this.#fichas.length < this.#fichasMax) {
+            console.log("fichas: ", this.#fichas, this.#fichasMax)
+            if (this.#fichas.length != 0) {
+                let ultimaficha = this.#fichas[this.#fichas.length -1];
+                ficha.setCoord(this.#coordX + (this.#width/2), ultimaficha.coordY - (Ficha.RADIO * 2));
+                this.#fichas.push(ficha);
+            } else {
+                ficha.setCoord(this.#coordX + (this.#width/2), this.#base - Ficha.RADIO);
+                this.#fichas.push(ficha);
+            }
+            return ficha;
         } else {
-            ficha.setCoord(this.#coordX + (this.#width/2), this.#base - Ficha.RADIO);
-            this.#fichas.push(ficha);
+            return undefined;
         }
     }
 
     quitarFicha() {
-        return this.#fichas.pop
+        return this.#fichas.pop();
     }
 
     esBolitaSuperior(mouseX, mouseY) {
@@ -70,12 +78,12 @@ class Palito {
         return false;
     }
 
-    dibujar(context) {
-        context.fillStyle = "black";
-        context.fillRect(this.#coordX, this.#coordY, this.#width, this.#height);
+    dibujar(contextBackground, contextGame) {
+        contextBackground.fillStyle = "black";
+        contextBackground.fillRect(this.#coordX, this.#coordY, this.#width, this.#height);
         
         for(let ficha of this.#fichas) {
-            ficha.dibujar(context);
+            ficha.dibujar(contextGame);
         }
     }
 }
@@ -98,11 +106,28 @@ class Ficha {
         return this.#coordY;
     }
 
+    get coordX() {
+        return this.#coordX;
+    }
+
     constructor(fill) {
         this.#fill = fill;
     }
 
+    //FIXME: fijarme que no salga ningun trozo depelotita del canvas
     setCoord(coordX, coordY) {
+        if  (coordX < Ficha.RADIO) {
+            coordX += Ficha.RADIO
+        }
+        if (coordY < Ficha.RADIO) {
+            coordY += Ficha.RADIO   
+        }
+        if (coordX > Ficha.RADIO * 9) {
+            coordX -= Ficha.RADIO
+        }
+        if (coordY > Ficha.RADIO * 9) {
+            coordY -= Ficha.RADIO   
+        }
         this.#coordX = coordX;
         this.#coordY = coordY;
     }
@@ -118,6 +143,10 @@ class Ficha {
         return (this.distanciaEntrePuntos(mouseX, mouseY) <= Ficha.RADIO)
     }
 
+    getDif(mouseX, mouseY) {
+        return {"x": mouseX - this.#coordX, "y": mouseY - this.#coordY}
+    }
+
     dibujar(context) {
         context.fillStyle = this.#fill;
         context.beginPath();
@@ -131,7 +160,9 @@ class Ficha {
 //manejo del nivel
 class Tablero {
     #palitos;
-    #canvas;
+    #canvasGame;
+    #contextGame;
+    #contextBackground;
 
     static get LARGO_TOTAL() {
         return (Ficha.RADIO *10);
@@ -149,9 +180,11 @@ class Tablero {
         return this.LARGO_TOTAL - ((Ficha.RADIO * 2) + this.ANCHO);
     }
 
-    constructor(canvas) {
+    constructor(canvasGame, canvasBackground) {
         this.#palitos = new Array();
-        this.#canvas = canvas;
+        this.#canvasGame = canvasGame;
+        this.#contextGame = this.#canvasGame.getContext("2d");
+        this.#contextBackground = canvasBackground.getContext("2d");
         this.crearPalitos();
     }
     // mi palo es la 3ra parte de mi bolita
@@ -183,74 +216,101 @@ class Tablero {
         return null;
     }
 
-    // limpiarCanvas() {
-    //     context.clearRect(0, 0, canvas.width, canvas.height);
-    // }
+    limpiarCanvas() {
+        this.#contextGame.clearRect(0, 0, this.#canvasGame.width, this.#canvasGame.height);
+    }
 
     jugar() {
         let press = false
-        let elem 
+        let elem = null
+        let paloInit = null
+        let paloFin = null
         let dif = 0
-        this.#canvas.onmousedown = (e) => {
+        let coordsInit;
+        this.#canvasGame.onmousedown = (e) => {
             press = true
 
-            let palo = this.palitoActivo(e.layerX, e.layerY);
-            if (palo != null) {
-                elem = palo.esBolitaSuperior(e.layerX, e.layerY);
+            paloInit = this.palitoActivo(e.layerX, e.layerY);
+            if (paloInit != null) {
+                elem = paloInit.esBolitaSuperior(e.layerX, e.layerY);
+                if (elem != null) {
+                    coordsInit = {"x": elem.coordX, "y": elem.coordY};
+                }
             }
 
             if ((elem != undefined && elem != null) && press){
-                // dif = elem.getDif(e.layerX, e.layerY) //diferencia click a  draw
+                dif = elem.getDif(e.layerX, e.layerY) //diferencia click a  draw
             }
         }
-        this.#canvas.onmousemove = (e) => {
+    
+        this.#canvasGame.onmousemove = (e) => {
             if ((elem != undefined && elem != null) && press){
-                // elem.setCoord(e.layerX - dif.x, e.layerY - dif.y)
-                // limpiarCanvas()
-                // this.dibujar()
+        
+                elem.setCoord(e.layerX - dif.x, e.layerY - dif.y)
+                // elem.setCoord(e.layerX, e.layerY);
+                this.limpiarCanvas();
+                this.dibujar();
             }
         }
-        this.#canvas.onmouseup = () => {
+        this.#canvasGame.onmouseup = (e) => {
             press = false;
             dif = 0
+            paloFin = this.palitoActivo(e.layerX, e.layerY)
+
+            if (elem != null) {
+                if (paloFin != null && paloFin != paloInit) {
+                    let ficha = paloInit.quitarFicha()
+                    if (ficha != undefined) {
+                        (paloFin.cargarFicha(elem) != undefined) ? {} : paloInit.cargarFicha(elem);
+                    } else {
+                        elem.setCoord(coordsInit.x, coordsInit.y);
+                    }
+                } else {
+                    elem.setCoord(coordsInit.x, coordsInit.y);
+                }
+                this.limpiarCanvas();
+                this.dibujar();
+            }
         }
     }
 
-    dibujar(context) {
-        context.fillStyle = "black";
-        context.fillRect(Tablero.INICIO_BASE_X, Tablero.INICIO_BASE_Y, Tablero.LARGO_TOTAL, Tablero.ANCHO);
+    // FIXME: algunas pelotitas se dibujan debajo de otras, restriccion de posicion si hay otro elemento
+    dibujar() {
+        this.#contextBackground.fillStyle = "black";
+        this.#contextBackground.fillRect(Tablero.INICIO_BASE_X, Tablero.INICIO_BASE_Y, Tablero.LARGO_TOTAL, Tablero.ANCHO);
        
         for (let palito of this.#palitos) {
-            palito.dibujar(context);
+            palito.dibujar(this.#contextBackground, this.#contextGame);
         }
     }
 }
 
 //manejo del juego
 class Game {
-    #context;
-    #canvas;
+    #contextGame;
+    #contextBackground;
+    #canvasGame;
+    #canvasBackground;
 
-    constructor(canvas) {
-        this.#canvas = canvas;
-        this.#context = canvas.getContext("2d");
+    constructor() {
+        this.#canvasGame = document.querySelector("#game-layer");
+        this.#contextGame = this.#canvasGame.getContext("2d");
+        this.#canvasBackground = document.querySelector("#background-layer");
+        this.#contextBackground = this.#canvasGame.getContext("2d");
     }
 
     init() {
-        Ficha.RADIO = this.#canvas.width / (5 * 2); //mis medidas son a base de radio (10rad x 10rad)
+        Ficha.RADIO = this.#canvasGame.width / (5 * 2); //mis medidas son a base de radio (10rad x 10rad)
         
-        let tablero = new Tablero(this.#canvas);
+        let tablero = new Tablero(this.#canvasGame, this.#canvasBackground);
         tablero.cargarPalo(0, "red", "green");
         tablero.cargarPalo(1, "blue");
         
-        tablero.dibujar(this.#context);
+        tablero.dibujar();
         tablero.jugar();
     }
 
 }
 
-let canvas = document.querySelector("canvas");
-let game = new Game(canvas);
+let game = new Game();
 game.init();
-
-//TODO: arreglar la crotada del context (hacer una inetrfaz o elemento heredable para hacer super() )
