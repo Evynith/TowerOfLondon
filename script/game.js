@@ -23,10 +23,16 @@ class Observable {
  
     // Loops over this.observers and calls the update method on each observer.
     // The state object will call this method everytime it is updated.
-    notify(data) {
+    notifyState(data) {
       if (this.observers.length > 0) {
-        this.observers.forEach((observer) => observer.update(data));
+        this.observers.forEach((observer) => observer.updateState(data));
       }
+    }
+
+    notifyMoving(data) {
+        if (this.observers.length > 0) {
+            this.observers.forEach((observer) => observer.updateMoving(data));
+          }
     }
  }
 
@@ -78,7 +84,7 @@ class Palito extends Observable {
     cargarFicha(ficha) {
        let estado = this.#cargar(this.#fichas, ficha);
        if (estado != undefined) {
-            this.notifyState();
+            this.notify();
        }
        return estado
     }
@@ -87,8 +93,8 @@ class Palito extends Observable {
         return this.#cargar(this.#estadoFinal, ficha);
     }
 
-    notifyState() {
-        this.notify({"id": this.#fichasMax, "st": this.#estado()});
+    notify() {
+        this.notifyState({"id": this.#fichasMax, "st": this.#estado()});
     }
 
     #estado() {
@@ -108,7 +114,6 @@ class Palito extends Observable {
             }
         }
         return true
-        //TODO: aviso que yo cumplo, si recibe 3 "yo cumplo" llegué a esado final (podria  tener en TS un escuchador de cambio de variable (o era para variables del DOM solamente?))
     }
 
     #cargar (array, ficha) {
@@ -129,7 +134,7 @@ class Palito extends Observable {
 
     quitarFicha() {
         let ficha = this.#fichas.pop();
-        this.notifyState();
+        this.notify();
         return ficha;
     }
 
@@ -226,7 +231,7 @@ class Ficha {
 }
 
 //manejo del nivel
-class Tablero {
+class Tablero  extends Observable{
     #palitos;
     #canvasGame;
     #contextGame;
@@ -254,6 +259,22 @@ class Tablero {
         return this.LARGO_TOTAL - (Ficha.RADIO * 2) + this.ANCHO;
     }
 
+    get movimientosHechos() {
+        return this.#movimientosHechos;
+    }
+
+    get tiempoPlaneamiento() {
+        return this.#tiempoPlaneamiento;
+    }
+
+    get tiempoResolucion() {
+        return this.#tiempoResolucion; //FIXME: nunca corta el tiempo de resolucion (necesario?)
+    }
+
+    get isPelotitaEnUso () {
+        return this.#pelotitaEnUso;
+    }
+
     set movMax (movimientos) {
         this.#movimientosMax = movimientos;
     }
@@ -262,20 +283,21 @@ class Tablero {
         this.#tiempoMaximo = tiempo;
     }
 
-    get isPelotitaEnUso () {
-        return this.#pelotitaEnUso;
-    }
-
     constructor(canvasGame, canvasBackground, game) {
-        this.#palitos = new Array();
-        this.#pelotitaEnUso = false;
+        super();
         this.#canvasGame = canvasGame;
         this.#contextGame = this.#canvasGame.getContext("2d");
         this.#contextBackground = canvasBackground.getContext("2d");
-        this.crearPalitos(game);
+        
+        this.addObserver(game);// TODO: terminé mi movimiento, si termine mov y estado == completado, nivel FIN
+        this.limpiarCanvas();
+        this.#palitos = new Array();
+        this.#pelotitaEnUso = false;
+        this.#movimientosHechos = 0;
         this.#tiempoPlaneamiento = {"h": 0, "m": 0, "s": 0}
         this.#tiempoResolucion = {"h": 0, "m": 0, "s": 0}
 
+        this.crearPalitos(game);
     }
     // mi palo es la 3ra parte de mi bolita
     // tengo 10 radios de largo 
@@ -296,7 +318,7 @@ class Tablero {
         for (let ficha of bolitas) {
             this.#palitos[nroPalo].cargarFicha(new Ficha(ficha));
         }
-        this.#palitos[nroPalo].notifyState(); // acá por si su estado inicial es el mismo 
+        this.#palitos[nroPalo].notify(); // acá por si su estado inicial es el mismo 
     }
 
     estadoFinal(nroPalo, ...bolitas) {
@@ -326,12 +348,14 @@ class Tablero {
     }
 
     jugar() {
+        this.limpiarCanvas();
+        this.dibujar();
+        console.log("dentro jugar")
         let elem = null
         let paloInit = null
         let paloFin = null
         let dif = 0
         let coordsInit;
-        this.#movimientosHechos = 0;
         let tiempoPlaneamientoInterval = setInterval(()=> {
             this.sumarTiempo(this.#tiempoPlaneamiento)
         },1000);
@@ -358,6 +382,7 @@ class Tablero {
             if ((elem != undefined && elem != null) && this.#pelotitaEnUso){
                 dif = elem.getDif(e.layerX, e.layerY)
             }
+            this.notifyMoving(this.#pelotitaEnUso)
         }
     
         this.#canvasGame.onmousemove = (e) => {
@@ -382,10 +407,10 @@ class Tablero {
             }
         }
         this.#canvasGame.onmouseup = (e) => {
-            this.#pelotitaEnUso = false;
             dif = 0
             paloFin = this.palitoActivo(e.layerX, e.layerY)
-
+            this.#pelotitaEnUso = false;
+            
             if (elem != null) {
                 if (paloFin != null && paloFin != paloInit) {
                     let ficha = paloInit.quitarFicha()
@@ -406,6 +431,7 @@ class Tablero {
                 elem = null; // sino el mouse leave si o si me cambia el element guardado al salir del canvas
                 this.limpiarCanvas();
                 this.dibujar();
+                this.notifyMoving(this.#pelotitaEnUso)
             }
         }
 
@@ -416,10 +442,11 @@ class Tablero {
                 this.limpiarCanvas();
                 this.dibujar();
             }
+            this.notifyMoving(this.#pelotitaEnUso)
         }
     }
 
-    // FIXME: algunas pelotitas se dibujan debajo de otras, restriccion de posicion si hay otro elemento?
+    // FIXME: algunas pelotitas se dibujan debajo de otras, restriccion de posicion si hay otro elemento? o z-index
     dibujar() {
         this.#contextBackground.fillStyle = "black";
         this.#contextBackground.fillRect(Tablero.INICIO_BASE_X, Tablero.INICIO_BASE_Y, Tablero.LARGO_TOTAL, Tablero.ANCHO);
@@ -433,10 +460,10 @@ class Tablero {
 //manejo del juego
 class Game  extends Observer {
     #canvasGame;
+    #niveles;
     #canvasBackground;
     #tablero;
     #states;
-    #proxy;
 
     constructor() {
         super();
@@ -446,21 +473,44 @@ class Game  extends Observer {
         this.#tablero = new Tablero(this.#canvasGame, this.#canvasBackground, this);
         this.#states = new Map();
 
-        this.#proxy = new Proxy(this.#states,{
-            get(target,prop,receiver){
-                let value = Reflect.get(...arguments);
-                return typeof value === 'function'?value.bind(target):value;
-            }
-        });
-        // TODO: pensar  como mirar el estado sólo cuando se que termino de hacer el ultimo movimiento
-        // podrìa revisar la variable "this.#pelotitaEnUso" de tablero
+        this.#niveles = [
+            new Map([ //nvl1
+                ['p1', {"estadoInicial":[ "green", "red"], "estadoFinal":["red","green"]}],
+                ['p2', {"estadoInicial":["blue"],          "estadoFinal":["blue"]}],
+                ['p3', {"estadoInicial":[],                "estadoFinal":[]}],
+                ['movMax', 6],
+                ['tiempoMax', {"h": 0, "m": 0, "s": 0}]
+              ]),
+              new Map([ //nvl2
+              ['p1', {"estadoInicial":[ "blue", "green"], "estadoFinal":["red","green"]}],
+              ['p2', {"estadoInicial":[],                 "estadoFinal":["blue"]}],
+              ['p3', {"estadoInicial":["red"],            "estadoFinal":[]}],
+              ['movMax', 5],
+              ['tiempoMax', {"h": 0, "m": 0, "s": 0}]
+            ]),
+        ];
+
+        this.initNivel(this.#niveles[0]);
     }
 
     end() {
-        console.log("fin")
+        console.log("-FIN-", " ", "tiempo planeamiento: ", this.#tablero.tiempoPlaneamiento, 
+                                  "tiempo resolucion: ", this.#tablero.tiempoResolucion,
+                                  "movimientos totales: ", this.#tablero.movimientosHechos
+                                ) //TODO: voy sacando los niveles iniciales, acá guardo mis valores? - paso sig nvl
+        // quito el actual y si tengo mas lo ejecuto
+        this.#niveles.shift()
+        this.#states = new Map();
+        this.#tablero = new Tablero(this.#canvasGame, this.#canvasBackground, this);
+        if (this.#niveles.length > 0) {
+            this.initNivel(this.#niveles[0]);
+        }
     }
 
     estadoCompletado() {
+        if (this.#states.size < 3) { //para que no me compare antes de haber inicializado todo
+            return false
+        }
         for (let amount of this.#states.values()) {
             if (amount == false) {
                 return false
@@ -469,25 +519,27 @@ class Game  extends Observer {
         return true
     }
 
-    init() {
-        this.#tablero.estadoFinal(0, "green", "red")
-        this.#tablero.estadoFinal(1, "blue");
-        this.#tablero.estadoFinal(2, ...[]); 
+    initNivel(nivel) {
+        this.#tablero.estadoFinal(0, ...nivel.get("p1").estadoFinal);
+        this.#tablero.estadoFinal(1, ...nivel.get("p2").estadoFinal);
+        this.#tablero.estadoFinal(2, ...nivel.get("p3").estadoFinal); 
 
-        this.#tablero.estadoInicial(0, "red", "green");
-        this.#tablero.estadoInicial(1, "blue");
-        this.#tablero.estadoInicial(2, ...[]);
+        this.#tablero.estadoInicial(0, ...nivel.get("p1").estadoInicial);
+        this.#tablero.estadoInicial(1, ...nivel.get("p2").estadoInicial);
+        this.#tablero.estadoInicial(2, ...nivel.get("p3").estadoInicial);
 
-        this.#tablero.movMax = 6;
-        this.#tablero.tiempoMax = {"h": 0, "m": 0, "s": 0};
-        this.#tablero
-        this.#tablero.dibujar();
+        this.#tablero.movMax = nivel.get("movMax");
+        this.#tablero.tiempoMax = nivel.get("tiempoMax");
+
         this.#tablero.jugar();
     }
 
-    update(state) {
-        this.#proxy.set(state.id,state.st);
-        if ((this.estadoCompletado()) && (this.#tablero.isPelotitaEnUso == false)) {
+    updateState(state) {
+        this.#states.set(state.id,state.st);
+    }
+
+    updateMoving(state) {
+        if (state == false && this.estadoCompletado()) {
             this.end();
         }
     }
@@ -495,4 +547,3 @@ class Game  extends Observer {
 }
 
 let game = new Game();
-game.init();
