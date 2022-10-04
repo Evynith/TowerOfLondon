@@ -21,8 +21,6 @@ class Observable {
       }
     }
  
-    // Loops over this.observers and calls the update method on each observer.
-    // The state object will call this method everytime it is updated.
     notifyState(data) {
       if (this.observers.length > 0) {
         this.observers.forEach((observer) => observer.updateState(data));
@@ -50,6 +48,7 @@ class Palito extends Observable {
     #height;
     #coordX;
     #coordY;
+    #selector;
 
     static get ALTURA_MAXIMA() {
         return (Ficha.RADIO *2) * 3;
@@ -61,6 +60,17 @@ class Palito extends Observable {
         } else {
             null
         }
+    }
+
+    get selector() {
+        return this.#selector
+    }
+
+    /**
+     * @param {Ficha} ficha
+     */
+    set selector(ficha) {
+        this.crearSelector(ficha);
     }
 
     /**
@@ -148,16 +158,38 @@ class Palito extends Observable {
         return null;
     }
 
+    crearSelector(ficha = new Ficha("yellow", 0.3)) {
+        this.#selector = ficha;
+        this.#selector.setCoord(this.#coordX + (this.#width/2), this.#coordY - Ficha.RADIO - (Ficha.RADIO/9) );
+    }
+
+    esMiSelector(mouseX, mouseY) {
+        if ( this.#selector == null || this.#selector == undefined ) {
+            this.crearSelector();
+        }
+        if (this.#selector.estaDentro(mouseX, mouseY) ) {
+            return this.#selector;
+        }
+        return null;
+    }
+
     estaEnMiArea(mouseX, mouseY) {
         let mitadArea = (this.#coordX + this.#width/2);
         let izquierda = mitadArea - Ficha.RADIO;
         let derecha = mitadArea + Ficha.RADIO;
         if (mouseX > izquierda && mouseX < derecha) {
-            if (mouseY > this.#coordY && mouseY < this.#base) {
+            if (mouseY > this.#coordY && mouseY < this.#base || this.esMiSelector(mouseX, mouseY) ) { //más área del selector
                 return true;
             }
         }
         return false;
+    }
+
+    mostrarSelector(contextGame) {
+        if ( this.#selector == null || this.#selector == undefined ) {
+            this.crearSelector();
+        }
+        this.#selector.dibujar(contextGame);
     }
 
     dibujar(contextBackground, contextGame) {
@@ -174,6 +206,7 @@ class Ficha {
     #coordX;
     #coordY;
     #fill;
+    #alpha;
     static #RADIO;
 
     static get RADIO() {
@@ -196,8 +229,9 @@ class Ficha {
         return this.#fill;
     }
 
-    constructor(fill) {
+    constructor(fill, alpha = 1) {
         this.#fill = fill;
+        this.#alpha = alpha;
     }
 
     setCoord(coordX, coordY) {
@@ -221,11 +255,19 @@ class Ficha {
     }
 
     dibujar(context) {
-        context.fillStyle = this.#fill;
         context.beginPath();
         context.arc(this.#coordX, this.#coordY, Ficha.RADIO, 0, 2 * Math.PI);
-        context.closePath();
+        context.fillStyle = this.#fill;
+        context.globalAlpha = this.#alpha;
         context.fill();
+        context.lineWidth = 5;
+        context.strokeStyle = this.#fill;
+        context.globalAlpha = 1;
+        context.setLineDash([9]);
+        context.beginPath();
+        context.arc(this.#coordX, this.#coordY, Ficha.RADIO - 5, 0, 2 * Math.PI);
+        context.stroke();
+        context.closePath();
     }
 
 }
@@ -350,109 +392,91 @@ class Tablero  extends Observable{
     jugar() {
         this.limpiarCanvas();
         this.dibujar();
-        console.log("dentro jugar")
         let elem = null
         let paloInit = null
+        let paloAnterior = null;
         let paloFin = null
-        let dif = 0
-        let coordsInit;
+        let tiempoResolucionInterval;
         let tiempoPlaneamientoInterval = setInterval(()=> {
             this.sumarTiempo(this.#tiempoPlaneamiento)
         },1000);
-        let tiempoResolucionInterval;
 
         this.#canvasGame.onmousedown = (e) => {
-            this.#pelotitaEnUso = true
+            if (this.#pelotitaEnUso == true) { // si ya tengo una pelotita seleccionada
+                let cargaAceptada = paloFin.cargarFicha(elem);
+                if (cargaAceptada) {
+                    this.#movimientosHechos++; 
+                    elem = null;
+                    this.#pelotitaEnUso = false;
+                }
+            } else {
+                paloInit = this.palitoActivo(e.layerX, e.layerY);
+                if (paloInit != null) {
+                    elem = paloInit.esBolitaSuperior(e.layerX, e.layerY);
+                    if (elem != null) {
+                        
+                        paloInit.quitarFicha();
+                        paloInit.selector = elem; //una sola vez
+                        this.#pelotitaEnUso = true
 
-            paloInit = this.palitoActivo(e.layerX, e.layerY);
-            if (paloInit != null) {
-                elem = paloInit.esBolitaSuperior(e.layerX, e.layerY);
-                if (elem != null) {
-                    coordsInit = {"x": elem.coordX, "y": elem.coordY};
-                    if (this.#movimientosHechos == 0) {
-                        tiempoResolucionInterval = setInterval(()=> {
-                            this.sumarTiempo(this.#tiempoResolucion)
-                        },1000);
-                        clearInterval(tiempoPlaneamientoInterval);
-                        //TODO: pararlo cuando llegue a max movimientos o llegue a estado final
+                        //TODO: en los palitos restantes poner "fantasma de bolita para presionar"
+                        if (this.#movimientosHechos == 0) {
+                            tiempoResolucionInterval = setInterval(()=> {
+                                this.sumarTiempo(this.#tiempoResolucion)
+                            },1000);
+                            clearInterval(tiempoPlaneamientoInterval);
+                            //TODO: pararlo cuando llegue a max movimientos o llegue a estado final
+                        }
                     }
                 }
             }
-
-            if ((elem != undefined && elem != null) && this.#pelotitaEnUso){
-                dif = elem.getDif(e.layerX, e.layerY)
-            }
-            this.notifyMoving(this.#pelotitaEnUso)
+            this.dibujarYnotificar(elem);
         }
     
         this.#canvasGame.onmousemove = (e) => {
             if ((elem != undefined && elem != null) && this.#pelotitaEnUso){
-                let coordX = e.layerX - dif.x;
-                let coordY = e.layerY - dif.y;
-                if  (coordX - Ficha.RADIO < 0) {
-                    coordX = Ficha.RADIO
+                    
+                let paloActual = this.palitoActivo(e.layerX, e.layerY)
+                if (paloActual != null) {
+                    paloAnterior = paloFin;
+                    paloFin = paloActual;
                 }
-                if (coordY - Ficha.RADIO < 0) {
-                    coordY = Ficha.RADIO   
-                }
-                if (coordX + Ficha.RADIO > this.#canvasGame.width) {
-                    coordX = this.#canvasGame.width - Ficha.RADIO
-                }
-                if (coordY + Ficha.RADIO > this.#canvasGame.height) {
-                    coordY = this.#canvasGame.height - Ficha.RADIO
-                }
-                elem.setCoord(coordX, coordY)
-                this.limpiarCanvas();
-                this.dibujar();
-            }
-        }
-        this.#canvasGame.onmouseup = (e) => {
-            dif = 0
-            paloFin = this.palitoActivo(e.layerX, e.layerY)
-            this.#pelotitaEnUso = false;
-            
-            if (elem != null) {
-                if (paloFin != null && paloFin != paloInit) {
-                    let ficha = paloInit.quitarFicha()
-                    if (ficha != undefined) {
-                        let fichaCargada = paloFin.cargarFicha(elem);
-                        if (fichaCargada == undefined) {
-                            paloInit.cargarFicha(elem);
-                            // TODO: esperar respuestade si se computa o no asi
-                        } else {
-                            this.#movimientosHechos++; 
-                        }
-                    } else {
-                        elem.setCoord(coordsInit.x, coordsInit.y);
+                
+                if (paloAnterior != paloFin) {
+                    if (paloAnterior != null) {
+                        paloAnterior.selector = undefined;
                     }
-                } else {
-                    elem.setCoord(coordsInit.x, coordsInit.y);
+                    paloFin.selector = elem;
                 }
-                elem = null; // sino el mouse leave si o si me cambia el element guardado al salir del canvas
-                this.limpiarCanvas();
-                this.dibujar();
-                this.notifyMoving(this.#pelotitaEnUso)
+            } else {
+                if (paloFin != null) {
+                    paloFin.selector = undefined;
+                }
             }
-        }
-
-        this.#canvasGame.onmouseleave = (e) => { //si me salgo del area y aun tengo un elemento seleccionado
-            this.#pelotitaEnUso = false;
-            if (elem != null) {
-                elem.setCoord(coordsInit.x, coordsInit.y);
-                this.limpiarCanvas();
-                this.dibujar();
-            }
-            this.notifyMoving(this.#pelotitaEnUso)
+            this.dibujarYnotificar(elem);
         }
     }
 
-    // FIXME: algunas pelotitas se dibujan debajo de otras, restriccion de posicion si hay otro elemento? o z-index
+    dibujarYnotificar(elem) {
+        this.limpiarCanvas();
+        if ((elem != undefined && elem != null) && this.#pelotitaEnUso){
+            this.mostrarSelectores();
+        }
+        this.dibujar();
+    }
+
     dibujar() {
         this.#contextBackground.fillStyle = "black";
         this.#contextBackground.fillRect(Tablero.INICIO_BASE_X, Tablero.INICIO_BASE_Y, Tablero.LARGO_TOTAL, Tablero.ANCHO);
        
         for (let palito of this.#palitos) {
             palito.dibujar(this.#contextBackground, this.#contextGame);
+        }
+    }
+
+    mostrarSelectores() {
+        for (let palito of this.#palitos) {
+            palito.mostrarSelector(this.#contextGame);
         }
     }
 }
