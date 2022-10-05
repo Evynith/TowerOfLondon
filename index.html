@@ -10,7 +10,7 @@
             width: auto;
             height: auto;
             top: 25%;
-            left: 25%;
+            left: 35%;
             position: relative;
         }
 
@@ -19,6 +19,10 @@
             flex-direction: row;
             justify-content: space-around;
             height: 15vh;
+        }
+
+        li {
+            list-style-type: none;
         }
 
         #estado-final {
@@ -32,12 +36,29 @@
             margin-top: 0;
         }
 
+        #pantalla-intermedia {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            z-index: 3;
+        }
+
         canvas { position: absolute; }
         #game-layer { z-index: 2; }
         #background-layer { z-index: 1; }
     </style>
 </head>
 <body>
+
+    <div id="pantalla-intermedia">
+        <h1>Tower of London</h1>
+        <button id="btn-play">Jugar</button>
+    </div>
 
     <div id="data">
         <ul>

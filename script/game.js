@@ -1,5 +1,7 @@
 'use strict';
 
+let pantalla = document.querySelector("#pantalla-intermedia");
+
 class Observable {
     constructor() {
       this.observers = [];
@@ -530,7 +532,18 @@ class Game  extends Observer {
         this.#states = new Map();
         this.#tablero = new Tablero(this.#canvasGame, this.#canvasBackground, this);
         if (this.#niveles.length > 0) {
-            this.initNivel(this.#niveles[0]);
+            pantalla.querySelector("h1").innerHTML = "Nivel superado";
+            let btn = pantalla.querySelector("button");
+            btn.innerHTML = "Siguiente nivel";
+            pantalla.style.display = "flex";
+            btn.onclick = () => {
+                pantalla.style.display = "none";
+                this.initNivel(this.#niveles[0]);
+            }
+        } else {
+            pantalla.querySelector("h1").innerHTML = "Fin del juego";
+            pantalla.querySelector("button").remove();
+            pantalla.style.display = "flex";
         }
     }
 
@@ -546,7 +559,19 @@ class Game  extends Observer {
         return true
     }
 
+    mostrarDatos() {
+        document.querySelector("#tiempo-planeamiento").innerHTML = this.#tablero.tiempoPlaneamiento != null ?  this.setearEstiloReloj("planeamiento", this.#tablero.tiempoPlaneamiento) : "";
+        document.querySelector("#tiempo-resolucion").innerHTML = this.#tablero.tiempoResolucion != null ? this.setearEstiloReloj("resolucion", this.#tablero.tiempoResolucion) : "";
+        document.querySelector("#movimientos").innerHTML = this.#tablero.movimientosHechos != null ? "Movimientos realizados: " + this.#tablero.movimientosHechos : "";
+    }
+
     initNivel(nivel) {
+        document.querySelector("#estado-final").src = `../assets/${nivel.get("img")}.png`;
+        this.mostrarDatos(); //como un do-while
+        let mostrarDatosInterval = setInterval(()=> {
+            this.mostrarDatos();
+        },1000);
+
         this.#tablero.estadoFinal(0, ...nivel.get("p1").estadoFinal);
         this.#tablero.estadoFinal(1, ...nivel.get("p2").estadoFinal);
         this.#tablero.estadoFinal(2, ...nivel.get("p3").estadoFinal); 
@@ -559,12 +584,6 @@ class Game  extends Observer {
         this.#tablero.tiempoMax = nivel.get("tiempoMax");
 
         this.#tablero.jugar();
-        document.querySelector("#estado-final").src = `../assets/${nivel.get("img")}.png`;
-        let mostrarDatosInterval = setInterval(()=> {
-            document.querySelector("#tiempo-planeamiento").innerHTML = this.#tablero.tiempoPlaneamiento != null ?  this.setearEstiloReloj("planeamiento", this.#tablero.tiempoPlaneamiento) : "";
-            document.querySelector("#tiempo-resolucion").innerHTML = this.#tablero.tiempoResolucion != null ? this.setearEstiloReloj("resolucion", this.#tablero.tiempoResolucion) : "";
-            document.querySelector("#movimientos").innerHTML = this.#tablero.movimientosHechos != null ? "Movimientos realizados: " + this.#tablero.movimientosHechos : "";
-        },1000);
     }
 
     setearEstiloReloj(tiempo, elem) {
@@ -587,4 +606,7 @@ class Game  extends Observer {
 
 }
 
-let game = new Game();
+document.querySelector("#btn-play").onclick = () => {
+    pantalla.style.display = "none";
+    let game = new Game();
+}
