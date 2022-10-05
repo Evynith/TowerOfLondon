@@ -14,12 +14,44 @@
             position: relative;
         }
 
+        #data {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            height: 15vh;
+        }
+
+        #estado-final {
+            max-height: 100%;
+            max-width: 100%;
+            Object-fit: contain;
+        }
+
+        #estado-final ~ p{
+            text-align: center;
+            margin-top: 0;
+        }
+
         canvas { position: absolute; }
         #game-layer { z-index: 2; }
         #background-layer { z-index: 1; }
     </style>
 </head>
 <body>
+
+    <div id="data">
+        <ul>
+         <li id="tiempo-planeamiento"></li>
+         <li id="tiempo-resolucion"></li>
+         <li id="movimientos"></li>
+        </ul>
+     
+        <div>
+            <img id="estado-final" src="" alt="">
+            <p>Estado final</p>
+        </div>
+    </div>
+
     <div id="stage">
         <canvas id="game-layer" width="400" height="400"></canvas>
         <canvas id="background-layer" width="400" height="400"></canvas>

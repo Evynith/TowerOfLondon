@@ -463,6 +463,7 @@ class Tablero  extends Observable{
             this.mostrarSelectores();
         }
         this.dibujar();
+        this.notifyMoving(this.#pelotitaEnUso);
     }
 
     dibujar() {
@@ -503,6 +504,7 @@ class Game  extends Observer {
                 ['p2', {"estadoInicial":["blue"],          "estadoFinal":["blue"]}],
                 ['p3', {"estadoInicial":[],                "estadoFinal":[]}],
                 ['movMax', 6],
+                ['img', "estado-nro1"],
                 ['tiempoMax', {"h": 0, "m": 0, "s": 0}]
               ]),
               new Map([ //nvl2
@@ -510,6 +512,7 @@ class Game  extends Observer {
               ['p2', {"estadoInicial":[],                 "estadoFinal":["blue"]}],
               ['p3', {"estadoInicial":["red"],            "estadoFinal":[]}],
               ['movMax', 5],
+              ['img', "estado-nro1"],
               ['tiempoMax', {"h": 0, "m": 0, "s": 0}]
             ]),
         ];
@@ -556,6 +559,20 @@ class Game  extends Observer {
         this.#tablero.tiempoMax = nivel.get("tiempoMax");
 
         this.#tablero.jugar();
+        document.querySelector("#estado-final").src = `../assets/${nivel.get("img")}.png`;
+        let mostrarDatosInterval = setInterval(()=> {
+            document.querySelector("#tiempo-planeamiento").innerHTML = this.#tablero.tiempoPlaneamiento != null ?  this.setearEstiloReloj("planeamiento", this.#tablero.tiempoPlaneamiento) : "";
+            document.querySelector("#tiempo-resolucion").innerHTML = this.#tablero.tiempoResolucion != null ? this.setearEstiloReloj("resolucion", this.#tablero.tiempoResolucion) : "";
+            document.querySelector("#movimientos").innerHTML = this.#tablero.movimientosHechos != null ? "Movimientos realizados: " + this.#tablero.movimientosHechos : "";
+        },1000);
+    }
+
+    setearEstiloReloj(tiempo, elem) {
+        return `Tiempo de ${tiempo}: ${this.elemEstiloReloj(elem.h)}h ${this.elemEstiloReloj(elem.m)}m ${this.elemEstiloReloj(elem.s)}s`;
+    }
+
+    elemEstiloReloj(tiempo) {
+        return tiempo < 10 ? `0${tiempo}` : tiempo
     }
 
     updateState(state) {
