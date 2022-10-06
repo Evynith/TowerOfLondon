@@ -89,7 +89,7 @@ class Game  extends Observer {
     }
 
     initNivel(nivel) {
-        document.querySelector("#estado-final").src = `../assets/${nivel.get("img")}.png`;
+        document.querySelector("#estado-final").src = `/assets/${nivel.get("img")}.png`;
         this.mostrarDatos(); //como un do-while
         let mostrarDatosInterval = setInterval(()=> {
             this.mostrarDatos();
